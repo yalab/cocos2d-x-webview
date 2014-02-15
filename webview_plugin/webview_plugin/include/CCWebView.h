@@ -2,8 +2,8 @@
 #define __CC_WEBVIEW_H__
 
 #include "CCStdC.h"
-#include "cocoa/CCString.h"
-#include "cocoa/CCDictionary.h"
+#include "CCString.h"
+#include "CCDictionary.h"
 
 #define USING_NS_CC_WEBVIEW  using namespace cocos2d::webview_plugin
 
@@ -25,13 +25,13 @@ class CCWebView;
 
 class CCWebViewDelegate {
 	public:
-		virtual void callbackFromJS(CCWebView* webview, CCString* message){};
-        virtual bool shouldOverrideUrlLoading(CCWebView* webview, CCString* url){return false;};
-		virtual void onPageFinished(CCWebView* webview, CCString* url){};
-        virtual void onLoadError(CCWebView* webview, CCString* url){};
+		virtual void callbackFromJS(CCWebView* webview, std::string message){};
+        virtual bool shouldOverrideUrlLoading(CCWebView* webview, std::string url){return false;};
+		virtual void onPageFinished(CCWebView* webview, std::string url){};
+        virtual void onLoadError(CCWebView* webview, std::string url){};
 };
 
-class CCWebView : public CCObject {
+class CCWebView : public cocos2d::Object {
 	public:
 		static CCWebView* create(bool fullScreenMode = false);
 		void loadUrl(const char* url, bool transparent = false);
@@ -40,7 +40,7 @@ class CCWebView : public CCObject {
     
         // AndroidとiOSでJS実行の仕様が異なる。
         // iOSはCCStringを返すが、Androidではwindow.Cocos2dx.call(%s)でdelegate経由で結果を受け取る
-		CCString* evaluateJS(const char* js);
+		std::string evaluateJS(const char* js);
 		void setVisibility(bool enable);
 		void setRect(int x, int y, int w, int h);
 		void destroy();

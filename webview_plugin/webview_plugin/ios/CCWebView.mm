@@ -1,8 +1,9 @@
 #import "CCWebView.h"
 
-#import "EAGLView.h"
+#import "CCEAGLView.h"
 #import "CCFileUtils.h"
-#import "CCEGLView.h"
+#import "CCGLView.h"
+#import "CCDirector.h"
 
 @interface UIWebViewWithCloseHandler : UIWebView
 {
@@ -100,7 +101,8 @@ CCWebView::CCWebView(void *obj){
 
 CCWebView* CCWebView::create(bool fullScreenMode){
     CCWebView *webview = NULL;
-    UIView *view = [EAGLView sharedEGLView];
+    auto glView = Director::getInstance()->getOpenGLView();
+    UIView *view = (UIView*) glView->getEAGLView();
     UIWebViewWithCloseHandler *uiView = [[UIWebViewWithCloseHandler alloc] init];
     UIInterfaceOrientation orientation = [[UIApplication sharedApplication] statusBarOrientation];
     
@@ -129,45 +131,49 @@ void CCWebView::disableEffect(){
     }
 }
     
-CGPoint convertDesignCoordToScreenCoord(const CCPoint& designCoord, bool fullScreenMode = false)
+CGPoint convertDesignCoordToScreenCoord(const Point& designCoord, bool fullScreenMode = false)
 {
-    CCEGLViewProtocol* eglView = CCEGLView::sharedOpenGLView();
-    float viewH = (float)[[EAGLView sharedEGLView] getHeight];
-    CCPoint visiblePos = CCPointMake(designCoord.x * eglView->getScaleX(), designCoord.y * eglView->getScaleY());
-    CCPoint screenGLPos = visiblePos;
+    auto glView = Director::getInstance()->getOpenGLView();
+    CCEAGLView *eaglView = (CCEAGLView*) glView->getEAGLView();
+    float viewH = (float)[eaglView getHeight];
+    Point visiblePos = Point(designCoord.x * glView->getScaleX(), designCoord.y * glView->getScaleY());
+    Point screenGLPos = visiblePos;
     if(!fullScreenMode){
-        screenGLPos = screenGLPos +  eglView->getViewPortRect().origin;
+        screenGLPos = screenGLPos +  glView->getViewPortRect().origin;
     }
     CGPoint screenPos = CGPointMake(screenGLPos.x, viewH - screenGLPos.y);
-    screenPos.x = screenPos.x /  [[EAGLView sharedEGLView] contentScaleFactor] ;
-    screenPos.y = screenPos.y /  [[EAGLView sharedEGLView] contentScaleFactor] ;
+    screenPos.x = screenPos.x /  [eaglView contentScaleFactor] ;
+    screenPos.y = screenPos.y /  [eaglView contentScaleFactor] ;
     
     return screenPos;
 }
 
-CGSize convertDesignSizeToScreenSize(const CCSize& size)
+CGSize convertDesignSizeToScreenSize(const Size& size)
 {
-    CCEGLViewProtocol* eglView = CCEGLView::sharedOpenGLView();
-    CGSize controlSize = CGSizeMake(size.width * eglView->getScaleX(),size.height * eglView->getScaleY());
-    controlSize.width /=  [[EAGLView sharedEGLView] contentScaleFactor] ;
-    controlSize.height /=  [[EAGLView sharedEGLView] contentScaleFactor] ;
+    auto glView = Director::getInstance()->getOpenGLView();
+    CCEAGLView *eaglView = (CCEAGLView*) glView->getEAGLView();
+    CGSize controlSize = CGSizeMake(size.width * glView->getScaleX(),size.height * glView->getScaleY());
+    controlSize.width /=  [eaglView contentScaleFactor] ;
+    controlSize.height /=  [eaglView contentScaleFactor] ;
     return controlSize;
 }
 
 inline CGRect getRectForIOS(int x, int y, int w, int h, bool fullScreenMode = false) {
-    CGPoint point = convertDesignCoordToScreenCoord(CCPointMake(x,y + h), fullScreenMode);
-    CGSize size = convertDesignSizeToScreenSize(CCSizeMake(w,h));
+    CGPoint point = convertDesignCoordToScreenCoord(Point(x,y + h), fullScreenMode);
+    CGSize size = convertDesignSizeToScreenSize(Size(w,h));
     CCLOG("getRectForIOS %f %f %f %f", point.x, point.y, size.width, size.height);
     return CGRectMake(point.x, point.y, size.width, size.height);
 }
     
 void CCWebView::setRect(int x, int y, int w, int h){
+    auto glView = Director::getInstance()->getOpenGLView();
+    CCEAGLView *eaglView = (CCEAGLView*) glView->getEAGLView();
     UIWebView *uiView = (UIWebView*)mWebView;
     if(m_fullScreenMode){
         uiView.frame = CGRectMake(0,
                                   0,
-                                  [[EAGLView sharedEGLView] getWidth] / [[EAGLView sharedEGLView] contentScaleFactor],
-                                  [[EAGLView sharedEGLView] getHeight] / [[EAGLView sharedEGLView] contentScaleFactor]);
+                                  [eaglView getWidth]  / [eaglView contentScaleFactor],
+                                  [eaglView getHeight] / [eaglView contentScaleFactor]);
     }else{
         uiView.frame = getRectForIOS(x, y, w, h);
     }
@@ -211,11 +217,11 @@ void CCWebView::setVisibility(bool enable){
     }
 }
 
-CCString* CCWebView::evaluateJS(const char* js){
+std::string CCWebView::evaluateJS(const char* js){
     UIWebView *uiView = (UIWebView*)mWebView;
     NSString *jsStr = NSLocalizedString([[NSString alloc] initWithUTF8String:js], @"JS");
     NSString* result = [uiView stringByEvaluatingJavaScriptFromString:jsStr];
-    return CCString::create([result UTF8String]);
+    return std::string([result UTF8String]);
 }
 
 void CCWebView::destroy(){
@@ -238,8 +244,7 @@ void CCWebView::destroy(){
 void CCWebView::handleCalledFromJS(const char *message){
     CCWebViewDelegate *delegate = CCWebView::getWebViewDelegate();
     if(delegate != NULL){
-        CCString *str = new CCString(message);
-        str->autorelease();
+        auto str = std::string(message);
         delegate->callbackFromJS(this, str);
     }
 }
@@ -247,7 +252,7 @@ void CCWebView::handleCalledFromJS(const char *message){
 bool CCWebView::handleShouldOverrideUrlLoading(const char* url) {
     CCWebViewDelegate *delegate = CCWebView::getWebViewDelegate();
     if (delegate) {
-        CCString *str = CCString::create(url);
+        std::string str = std::string(url);
         return delegate->shouldOverrideUrlLoading(this, str);
     }
     return false;
@@ -256,7 +261,7 @@ bool CCWebView::handleShouldOverrideUrlLoading(const char* url) {
 void CCWebView::handleOnPageFinished(const char* url) {
     CCWebViewDelegate *delegate = CCWebView::getWebViewDelegate();
     if (delegate) {
-        CCString *str = CCString::create(url);
+        std::string str = std::string(url);
         return delegate->onPageFinished(this, str);
     }
 }
@@ -264,7 +269,7 @@ void CCWebView::handleOnPageFinished(const char* url) {
 void CCWebView::handleOnLoadError(const char* url) {
     CCWebViewDelegate *delegate = CCWebView::getWebViewDelegate();
     if (delegate) {
-        CCString *str = CCString::create(url);
+        std::string str = std::string(url);
         return delegate->onLoadError(this, str);
     }
 }
@@ -281,10 +286,12 @@ void CCWebView::setBannerModeEnable(bool enable)
     
     void CCWebView::setCloseButton(const char * imageName, int x, int y, int w, int h)
     {
-        UIView* uiView = [EAGLView sharedEGLView];
+        auto glView = Director::getInstance()->getOpenGLView();
+        UIView* uiView = (CCEAGLView*) glView->getEAGLView();
+//        UIView* uiView = [EAGLView sharedEGLView];
         UIWebViewWithCloseHandler *webView = (UIWebViewWithCloseHandler*)mWebView;
         
-        std::string imagePath = CCFileUtils::sharedFileUtils()->fullPathForFilename(imageName);
+        std::string imagePath = FileUtils::getInstance()->fullPathForFilename(imageName);
         
         UIButton* button = [UIButton buttonWithType:UIButtonTypeCustom];
         UIImage* image = [[UIImage alloc] initWithContentsOfFile:[NSString stringWithUTF8String:imagePath.c_str()]];
